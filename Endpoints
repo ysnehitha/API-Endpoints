@@ -1,0 +1,42 @@
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    "time"
+)
+
+var cache = NewLRUCache(100)
+
+func getHandler(w http.ResponseWriter, r *http.Request) {
+    key := r.URL.Query().Get("key")
+    value, found := cache.Get(key)
+    if found {
+        json.NewEncoder(w).Encode(map[string]string{"value": value})
+    } else {
+        http.Error(w, "Key not found", http.StatusNotFound)
+    }
+}
+
+func setHandler(w http.ResponseWriter, r *http.Request) {
+    var req map[string]interface{}
+    json.NewDecoder(r.Body).Decode(&req)
+    key := req["key"].(string)
+    value := req["value"].(string)
+    duration := time.Duration(req["duration"].(float64)) * time.Second
+    cache.Set(key, value, duration)
+    w.WriteHeader(http.StatusOK)
+}
+
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+    key := r.URL.Query().Get("key")
+    cache.Delete(key)
+    w.WriteHeader(http.StatusOK)
+}
+
+func main() {
+    http.HandleFunc("/get", getHandler)
+    http.HandleFunc("/set", setHandler)
+    http.HandleFunc("/delete", deleteHandler)
+    http.ListenAndServe(":8080", nil)
+}
